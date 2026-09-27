@@ -14,7 +14,7 @@ if __name__ == '__main__':
         main(Path(sys.argv[2]))
     else:
         try:
-            from studio import App
+            from studio_next import App
             App().mainloop()
         except Exception:
             import traceback

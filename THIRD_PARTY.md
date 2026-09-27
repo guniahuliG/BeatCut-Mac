@@ -1,5 +1,13 @@
 # Third-party components
 
+## Additions in 0.3
+
+- OpenCV 4.10.0 via opencv-python-headless 4.10.0.84 (Apache 2.0 / wrapper MIT, plus bundled dependency notices). Wheels contain additional libraries, including their own FFmpeg shared libraries; this is separate from our GPL-enabled command-line FFmpeg build. See the collected LICENSE and LICENSE-3RD-PARTY texts. Source/build recipes: https://github.com/opencv/opencv-python/tree/4.10.0.84 and https://github.com/opencv/opencv/tree/4.10.0 . When redistributing, review and satisfy the applicable LGPL/source/relinking obligations for wheel-bundled components as well; the Sources artifact is NOT a complete source offer for all wheel dependencies.
+- Pillow 11.1.0 (HPND and third-party notices): https://github.com/python-pillow/Pillow/tree/11.1.0 .
+- YuNet face detection ONNX model (MIT, Shiqi Yu). The model and license are included under app/models. origin.json records the pinned upstream commit URL and SHA256. No model downloads or network calls occur at runtime. This detects face landmarks; it does not identify people.
+- macOS audio preview invokes the system /usr/bin/afplay; no Apple system binaries are redistributed.
+
+
 This is an experimental local video editor. The Python application sources in `app/` and the build scripts are MIT-licensed; that license does not replace the licenses of bundled dependencies.
 
 The frozen application includes Python (PSF license), Tcl/Tk (their permissive license terms), NumPy and SciPy (BSD licenses and additional wheel notices, including numerical libraries), and the PyInstaller bootloader (GPL with its bootloader exception). PyInstaller's bootloader exception permits distribution of frozen applications under their own licenses. See the actual notices collected into `Contents/Resources/licenses` / `Contents/Frameworks/licenses` in the macOS bundle; PyInstaller may use symlinks between these locations.

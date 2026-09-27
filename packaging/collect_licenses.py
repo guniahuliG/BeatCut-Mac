@@ -7,7 +7,7 @@ out = root/'vendor/licenses'
 out.mkdir(parents=True, exist_ok=True)
 for path in (root/'packaging/licenses').glob('*'):
     shutil.copy2(path,out/path.name)
-for name in ('numpy','scipy','pyinstaller','pyinstaller-hooks-contrib','altgraph','macholib','packaging'):
+for name in ('numpy','scipy','pyinstaller','pyinstaller-hooks-contrib','altgraph','macholib','packaging','opencv-python-headless','Pillow'):
     distribution = importlib.metadata.distribution(name)
     for path in distribution.files or []:
         if any(token in path.name.lower() for token in ('license','copying','notice')):

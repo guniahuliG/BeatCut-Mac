@@ -1,0 +1,42 @@
+[
+  {
+    "wheel": "opencv_python_headless-4.10.0.84-cp37-abi3-macosx_12_0_x86_64.whl",
+    "binaries": 66,
+    "highest_minimum": [
+      12,
+      0,
+      0
+    ],
+    "sha256": "5ae454ebac0eb0a0b932e3406370aaf4212e6a3fdb5038cc86c7aea15a6851da"
+  },
+  {
+    "wheel": "opencv_python_headless-4.10.0.84-cp37-abi3-macosx_11_0_arm64.whl",
+    "binaries": 67,
+    "highest_minimum": [
+      11,
+      0,
+      0
+    ],
+    "sha256": "a4f4bcb07d8f8a7704d9c8564c224c8b064c63f430e95b61ac0bffaa374d330e"
+  },
+  {
+    "wheel": "pillow-11.1.0-cp312-cp312-macosx_10_13_x86_64.whl",
+    "binaries": 24,
+    "highest_minimum": [
+      10,
+      13,
+      0
+    ],
+    "sha256": "2062ffb1d36544d42fcaa277b069c88b01bb7298f4efa06731a7fd6cc290b81a"
+  },
+  {
+    "wheel": "pillow-11.1.0-cp312-cp312-macosx_11_0_arm64.whl",
+    "binaries": 24,
+    "highest_minimum": [
+      11,
+      0,
+      0
+    ],
+    "sha256": "a85b653980faad27e88b141348707ceeef8a1186f75ecc600c395dcac19f385b"
+  }
+]

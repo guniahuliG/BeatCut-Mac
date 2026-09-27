@@ -4,3 +4,5 @@ numpy==2.1.3; platform_machine != "x86_64"
 scipy==1.14.1; platform_machine != "x86_64"
 pyinstaller==6.12.0
 pyinstaller-hooks-contrib==2025.1
+opencv-python-headless==4.10.0.84
+Pillow==11.1.0

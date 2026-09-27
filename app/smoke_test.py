@@ -58,6 +58,9 @@ def main(report):
         p = subprocess.run(['ffmpeg','-v','error','-i',str(output),'-f','null','-'],capture_output=True,text=True)
         assert p.returncode == 0 and not p.stderr, p.stderr
         results.append({'effect':effect,'frames':int(v['nb_frames'])})
+    from fx_smoke import main as test_effects
+    effects_results = test_effects(report, report/'cut.mp4')
     (report/'self-test.json').write_text(json.dumps({'architecture':platform.machine(),
-        'macOS':platform.mac_ver()[0],'tcl':tcl_version,'tests':results},indent=2))
+        'macOS':platform.mac_ver()[0],'tcl':tcl_version,'tests':results,
+        'effects':effects_results},indent=2))
     print('Packaged render tests passed')
