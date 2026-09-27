@@ -1,0 +1,125 @@
+name: Build BeatCut for Mac
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Intel-Monterey
+            runner: macos-15-intel
+            arch: x86_64
+            minimum: '12.0'
+          - label: Apple-Silicon
+            runner: macos-15
+            arch: arm64
+            minimum: '14.0'
+    env:
+      APP_ARCH: ${{ matrix.arch }}
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.minimum }}
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
+    steps:
+      - name: Get project
+        uses: actions/checkout@v4
+
+      - name: Check native architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "$APP_ARCH"
+          sw_vers
+          xcode-select -p
+          command -v pkg-config || brew install pkgconf
+
+      - name: Install pinned Python including Tcl and Tk
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 packaging/download.py python build/python.pkg
+          pkgutil --check-signature build/python.pkg
+          sudo installer -pkg build/python.pkg -target /
+          /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 -m venv .venv
+          .venv/bin/python -c "import platform, tkinter; assert platform.machine() == '$APP_ARCH'; print(platform.python_version(), tkinter.Tcl().eval('info patchlevel'))"
+          .venv/bin/python -m pip install -q --only-binary=:all: -r requirements-build.txt
+
+      - name: Test montage planner
+        shell: bash
+        run: |
+          cd app
+          ../.venv/bin/python -m unittest -v test_studio.py
+
+      - name: Build local FFmpeg and x264 for the target macOS
+        shell: bash
+        run: bash packaging/build_ffmpeg.sh
+
+      - name: Collect licenses and build application
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/python packaging/collect_licenses.py
+          .venv/bin/python -m PyInstaller --noconfirm --clean packaging/BeatCut.spec
+
+      - name: Audit architecture, macOS minimums and library paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/python packaging/audit_bundle.py "dist/BeatCut Studio.app"
+          codesign --verify --deep --strict --verbose=2 "dist/BeatCut Studio.app"
+
+      - name: Test all transitions inside the packaged application
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/self-test
+          "dist/BeatCut Studio.app/Contents/MacOS/BeatCutStudio" --self-test "$PWD/build/self-test"
+          test -f build/self-test/self-test.json
+          cat build/self-test/self-test.json
+
+      - name: Archive the app preserving macOS permissions and symlinks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          ditto -c -k --sequesterRsrc --keepParent "dist/BeatCut Studio.app" "release/BeatCut-Studio-${{ matrix.label }}.zip"
+          tar -czf "release/Corresponding-Sources-${{ matrix.label }}.tar.gz" \
+            app packaging build-mac.yml requirements-build.txt LICENSE THIRD_PARTY.md README.md \
+            build/sources/ffmpeg.tar.xz build/sources/x264.tar.gz
+
+      - name: Upload application
+        uses: actions/upload-artifact@v4
+        with:
+          name: BeatCut-${{ matrix.label }}
+          path: release/BeatCut-Studio-${{ matrix.label }}.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload corresponding sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sources-${{ matrix.label }}
+          path: release/Corresponding-Sources-${{ matrix.label }}.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Reports-${{ matrix.label }}
+          path: |
+            build/bundle-audit.json
+            build/self-test/self-test.json
+            build/BeatCut/warn-BeatCut.txt
+          if-no-files-found: ignore
+          retention-days: 14
