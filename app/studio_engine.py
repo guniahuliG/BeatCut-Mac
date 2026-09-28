@@ -10,7 +10,9 @@ import subprocess
 import tempfile
 import numpy as np
 from audio_analysis import SAMPLE_RATE, detect_accents
-from beatcut import source_plan
+from source_selection import source_plan
+from job_gate import serialized
+from color_lut import sample_range,match_lut
 
 EFFECTS = {'Наплыв': 'fade', 'Сдвиг влево': 'slideleft',
            'Сдвиг вправо': 'slideright', 'Шторка вверх': 'wipeup',
@@ -91,13 +93,16 @@ def timeline(times, strengths, total, fps, rng, density, variety, minimum, maxim
     return cuts, timed
 
 
+@serialized
 def render(videos, music, output, s, cancel, progress):
     for binary in ('ffmpeg','ffprobe'):
         if not shutil.which(binary):
             raise ValueError('Не найден '+binary+'. Установите FFmpeg; см. инструкцию.')
     output, music = Path(output).resolve(), Path(music).resolve()
     paths = [Path(v).resolve() for v in videos]
-    if output == music or output in paths:
+    protected=paths+[music]
+    if s.get('color_match'):protected.append(Path(s.get('color_reference','')).resolve())
+    if output in protected or output.with_suffix('.beatcut.json') in protected:
         raise ValueError('Нельзя сохранять результат поверх исходного файла.')
     if not music.is_file() or not paths:
         raise ValueError('Выберите музыку и видео.')
@@ -119,7 +124,20 @@ def render(videos, music, output, s, cancel, progress):
             except (TypeError,ValueError):
                 duration = 0
             if math.isfinite(duration) and duration > s['min_shot']+2/fps:
-                sources.append({'path':str(v),'duration':duration})
+                transfer=str(stream.get('color_transfer','')).lower()
+                if s.get('color_match') and transfer in ('smpte2084','arib-std-b67'):
+                    raise ValueError('Автоцветовой match сейчас поддерживает SDR. HDR/PQ/HLG отключите или предварительно преобразуйте в SDR.')
+                sources.append({'path':str(v),'duration':duration,'color_transfer':transfer})
+    reference_stats=None
+    if s.get('color_match'):
+        reference=Path(s.get('color_reference','')).resolve()
+        if not reference.is_file():raise ValueError('Выберите существующее эталонное SDR-видео для color match.')
+        refdata=json.loads(run(['ffprobe','-v','error','-show_streams','-of','json',reference],cancel))
+        refstream=next((x for x in refdata['streams'] if x.get('codec_type')=='video' and not x.get('disposition',{}).get('attached_pic')),None)
+        if not refstream:raise ValueError('В эталоне цвета нет видеодорожки.')
+        if str(refstream.get('color_transfer','')).lower() in ('smpte2084','arib-std-b67'):
+            raise ValueError('HDR/PQ/HLG-эталон нельзя использовать для SDR color match.')
+        reference_stats=sample_range(reference,0.,None,5)
     if not sources:
         raise ValueError('Нет подходящих видео: проверьте длительность и формат.')
     # Reserve source handles for transitions; no shortening of the music timeline.
@@ -161,8 +179,19 @@ def render(videos, music, output, s, cancel, progress):
                 previous = effect
             transitions.append({'effect':effect,'frames':int(n),'end_frame':cuts[i+1]})
             incoming.append(int(n))
-        plan = source_plan(sources,[n+d for n,d in zip(lengths,incoming)],fps,rng)
-        progress(7,f'Акцентов: {len(times)}; фрагментов: {len(plan)}; переходов: {sum(t["frames"]>0 for t in transitions)}')
+        plan = source_plan(sources,[n+d for n,d in zip(lengths,incoming)],fps,rng,
+                           s.get('repeat_policy','Редкие повторы'),s.get('repeat_cooldown',8.),
+                           starts=[a-d for a,d in zip(cuts[:-1],incoming)],ends=cuts[1:],
+                           cancel=lambda:check(cancel))
+        repeats=sum(bool(item.get('repeat')) for item in plan)
+        color_filters=[]
+        if s.get('color_match'):
+            progress(7,'Анализ SDR-цвета выбранных фрагментов…')
+            for i,shot in enumerate(plan):
+                source_stats=sample_range(shot['source'],shot['start'],shot['frames']/fps,4)
+                color_filters.append(match_lut(source_stats,reference_stats,s.get('color_strength',.55)))
+                if i%5==0:check(cancel)
+        progress(7,f'Акцентов: {len(times)}; фрагментов: {len(plan)}; повторов моментов: {repeats}; переходов: {sum(t["frames"]>0 for t in transitions)}')
         w,h = s['size']
         geometry = (f'scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}' if s['fit']=='crop'
                     else f'scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:black')
@@ -173,6 +202,7 @@ def render(videos, music, output, s, cancel, progress):
         for i,shot in enumerate(plan):
             clip=work/f'clip_{i:05d}.mp4'
             vf=f'setpts=PTS-STARTPTS,fps={fps},{geometry},setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=1'
+            if color_filters:vf+=','+color_filters[i]
             run(head+['-ss',shot['start'],'-i',shot['source'],'-map','0:v:0','-vf',vf,
                       '-frames:v',shot['frames']]+encoding+[clip],cancel)
             clips.append(clip)
@@ -212,7 +242,12 @@ def render(videos, music, output, s, cancel, progress):
         metadata={'seed':seed,'settings':s,'audio':str(music),'duration':duration,
                   'accent_count':len(times),'cuts':cuts,'timed_fallback':fallback,
                   'segments':plan,'transitions':transitions,
-                  'transition_alignment':'Transitions end at the selected accent; music is not shortened.'}
+                              'range_diversity': 'source-time selection per repeat_policy',
+            'repeat_policy': s.get('repeat_policy','Редкие повторы'),
+            'repeat_cooldown_seconds': s.get('repeat_cooldown',8.),
+            'source_range_repeats':sum(bool(item.get('repeat')) for item in plan),
+            'source_range_overlap_policy':s.get('repeat_policy','Редкие повторы'),
+            'transition_alignment':'Transitions end at the selected accent; music is not shortened.'}
         # Video success is not lost if optional metadata cannot be written.
         try:
             output.with_suffix('.beatcut.json').write_text(json.dumps(metadata,ensure_ascii=False,indent=2),encoding='utf-8')

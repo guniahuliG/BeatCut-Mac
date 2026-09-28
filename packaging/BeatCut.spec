@@ -26,8 +26,8 @@ coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='BeatCut S
 app = BUNDLE(coll, name='BeatCut Studio.app', icon=None,
              bundle_identifier='local.beatcut.studio',
              info_plist={
-                 'CFBundleShortVersionString':'0.3.0',
-                 'CFBundleVersion':'3',
+                 'CFBundleShortVersionString':'0.5.0',
+                 'CFBundleVersion':'5',
                  'LSMinimumSystemVersion':MINIMUM,
                  'NSHighResolutionCapable':True,
                  'NSPrincipalClass':'NSApplication',

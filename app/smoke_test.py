@@ -60,6 +60,8 @@ def main(report):
         results.append({'effect':effect,'frames':int(v['nb_frames'])})
     from fx_smoke import main as test_effects
     effects_results = test_effects(report, report/'cut.mp4')
+    from test_release05 import integration
+    integration(report/'release05')
     (report/'self-test.json').write_text(json.dumps({'architecture':platform.machine(),
         'macOS':platform.mac_ver()[0],'tcl':tcl_version,'tests':results,
         'effects':effects_results},indent=2))

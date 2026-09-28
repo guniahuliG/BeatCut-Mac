@@ -18,7 +18,9 @@ class Player(ttk.Frame):
         self.data=data;self.cache=Path(cache);self.parameters=parameters;self.track=track;self.status=status
         self.reader=Reader(data['proxy']);self.position=0.;self.playing=False;self.closed=False
         self.audio_process=None;self.drag=False;self.photo=None;self.original=tk.BooleanVar(value=False)
-        self.image=ttk.Label(self,anchor='center');self.image.pack(fill='both',expand=True)
+        self.live_preview=tk.BooleanVar(value=False)
+        self.image=ttk.Label(self,anchor='center',text='Предпросмотр выключен — это экономит ресурсы Mac.\nВключите его, когда захотите увидеть кадр.')
+        self.image.pack(fill='both',expand=True)
         self.seek=ttk.Scale(self,from_=0,to=data['duration']);self.seek.pack(fill='x',pady=8)
         self.seek.bind('<ButtonPress-1>',self.begin_seek)
         self.seek.bind('<ButtonRelease-1>',self.end_seek)
@@ -26,10 +28,10 @@ class Player(ttk.Frame):
         buttons=ttk.Frame(self);buttons.pack(fill='x')
         self.button=ttk.Button(buttons,text='▶ Воспроизвести',command=self.toggle);self.button.pack(side='left')
         ttk.Button(buttons,text='В начало',command=self.rewind).pack(side='left',padx=4)
+        ttk.Checkbutton(buttons,text='Live preview (нагрузка CPU)',variable=self.live_preview,command=self.set_live_preview).pack(side='left',padx=6)
         ttk.Checkbutton(buttons,text='Без эффектов',variable=self.original,command=self.redraw).pack(side='left',padx=6)
         self.time_label=ttk.Label(buttons,text='');self.time_label.pack(side='right')
-        ttk.Label(self,text='Предпросмотр ≤ 640×360; экспорт — в разрешении черновика.\n'
-                  'Звук: приблизительная синхронизация; при перегрузке видеокадры пропускаются.',wraplength=580).pack(anchor='w',pady=8)
+        ttk.Label(self,text='Предпросмотр выключен по умолчанию. Экспорт от этого не зависит.\nЦвет уже применён при сборке черновика. Звук синхронизирован приблизительно.',wraplength=540).pack(anchor='w',pady=8)
         self.after(100,self.tick)
 
     def stop_audio(self):
@@ -60,6 +62,8 @@ class Player(ttk.Frame):
         except OSError:self.status('Не удалось включить звук предпросмотра. Экспорт сохранит музыку.')
 
     def toggle(self):
+        if not self.live_preview.get():
+            self.status('Сначала включите Live preview.');return
         if self.playing:self.pause();return
         if self.position>=self.data['duration']-1/self.data['fps']:self.position=0
         self.start_audio();self.origin=time.monotonic()-self.position
@@ -78,10 +82,20 @@ class Player(ttk.Frame):
     def end_seek(self,event=None):
         self.pause();self.drag=False;self.position=float(self.seek.get());self.redraw()
 
+    def set_live_preview(self):
+        if not self.live_preview.get():self.pause()
+        self.redraw()
+
     def redraw(self):
         if self.closed:return
+        if not self.live_preview.get():
+            self.photo=None
+            self.image.configure(image='',text='Предпросмотр выключен — это экономит ресурсы Mac.\nВключите Live preview для оценки эффектов.')
+            self.time_label.configure(text=f'{self.position:.2f} / {self.data["duration"]:.2f} сек')
+            return
         try:
-            p=self.parameters();t=min(self.position,self.data['duration']-1/self.data['fps'])
+            p=self.parameters()
+            t=min(self.position,self.data['duration']-1/self.data['fps'])
             st=t if self.original.get() else source_time(t,p)
             i=min(self.data['count']-1,max(0,int(st*self.data['fps']+1e-6)))
             frame=self.reader.get(i)

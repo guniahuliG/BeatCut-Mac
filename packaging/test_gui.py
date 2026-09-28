@@ -25,9 +25,10 @@ def wait_until(predicate,timeout=30):
     assert not errors,errors
 
 try:
+    editor.begin_prepare()
     wait_until(lambda:not editor.busy)
     assert editor.data and editor.player and editor.controls
-    app.update();editor.player.redraw();assert editor.player.photo is not None
+    app.update();editor.player.live_preview.set(True);editor.player.redraw();assert editor.player.photo is not None
     editor.controls.vars['zoom'].set(True)
     editor.controls.vars['shake'].set(True)
     editor.player.toggle()

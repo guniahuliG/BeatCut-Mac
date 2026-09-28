@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 from studio_engine import Cancelled, check, run
 from fx_core import source_time, transform, smooth_track
+from job_gate import serialized
 
 
 def model_path():
@@ -32,6 +33,7 @@ def info(path):
                 audio=any(s['codec_type']=='audio' for s in data['streams']))
 
 
+@serialized
 def prepare(source, cache, cancel, progress):
     """Normalize a constant-FPS full-resolution master; proxy has identical frames.
     This extra encode costs time but makes arbitrary VFR/phone inputs predictable.
@@ -59,6 +61,7 @@ def prepare(source, cache, cancel, progress):
                 fps=fps,count=count,duration=count/fps)
 
 
+@serialized
 def analyze(proxy, cancel, progress):
     cap=cv2.VideoCapture(str(proxy)); detect=detector(); rows=[]
     count=max(1,int(cap.get(cv2.CAP_PROP_FRAME_COUNT))); fps=cap.get(cv2.CAP_PROP_FPS)
@@ -115,6 +118,7 @@ class Reader:
     def close(self):self.cap.release()
 
 
+@serialized
 def export(data, output, params, raw_track, cancel, progress):
     output=Path(output); reader=Reader(data['master']); proc=None
     track=smooth_track(raw_track,params['smooth'],data['fps'])

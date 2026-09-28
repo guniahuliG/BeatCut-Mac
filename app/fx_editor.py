@@ -6,7 +6,7 @@ import tempfile
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from fx_controls import Controls
+from fx_controls_v2 import Controls
 from fx_core import smooth_track
 from fx_media import prepare, analyze, export
 from fx_player import Player
@@ -16,7 +16,7 @@ from studio_engine import Cancelled
 class Editor(tk.Toplevel):
     def __init__(self,parent,source):
         super().__init__(parent)
-        self.title('BeatCut 0.3 • эффекты и предпросмотр');self.geometry('1120x800');self.minsize(950,720)
+        self.title('BeatCut 0.5 • эффекты и предпросмотр');self.geometry('1120x800');self.minsize(950,720)
         self.source=Path(source).resolve();self.cache=tempfile.TemporaryDirectory(prefix='beatcut-preview-')
         self.events=queue.Queue();self.cancel=threading.Event();self.busy=False;self.closed=False
         self.data=None;self.player=None;self.raw=None;self.smoothed=None;self.smoothing=None;self.controls=None
@@ -32,6 +32,13 @@ class Editor(tk.Toplevel):
         self.settings_button=ttk.Button(buttons,text='Сохранить настройки JSON…',command=self.save_settings,state='disabled');self.settings_button.pack(side='right')
         self.protocol('WM_DELETE_WINDOW',self.close)
         self.after(100,self.poll)
+        self.status.set('Предпросмотр не подготовлен. Нажмите кнопку только если он нужен.')
+        self.load_button=ttk.Button(self.main,text='Подготовить предпросмотр / эффекты',command=self.begin_prepare)
+        self.load_button.pack(pady=40)
+
+    def begin_prepare(self):
+        if self.busy or self.data:return
+        self.load_button.configure(state='disabled')
         self.launch('prepared',lambda progress:prepare(self.source,self.cache.name,self.cancel,progress))
 
     def launch(self,kind,operation):
@@ -52,7 +59,9 @@ class Editor(tk.Toplevel):
                 kind,value=self.events.get_nowait()
                 if kind=='progress':self.bar['value']=value[0];self.status.set(value[1]);continue
                 self.busy=False
+                if not self.data:self.load_button.configure(state='normal')
                 if kind=='prepared':
+                    self.load_button.destroy()
                     self.data=value
                     side=ttk.Frame(self.main);side.pack(side='right',fill='y')
                     canvas=tk.Canvas(side,width=385,highlightthickness=0)

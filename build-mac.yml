@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           cd app
-          ../.venv/bin/python -m unittest -v test_studio.py
+          ../.venv/bin/python -m unittest -v test_studio.py test_fx.py test_random_fx.py test_source_selection.py test_release05.py
 
       - name: Build local FFmpeg and x264 for the target macOS
         shell: bash
@@ -93,7 +93,7 @@ jobs:
           mkdir -p release
           ditto -c -k --sequesterRsrc --keepParent "dist/BeatCut Studio.app" "release/BeatCut-Studio-${{ matrix.label }}.zip"
           tar -czf "release/Corresponding-Sources-${{ matrix.label }}.tar.gz" \
-            app packaging build-mac.yml requirements-build.txt LICENSE THIRD_PARTY.md README.md \
+            app packaging build-mac.yml requirements-build.txt LICENSE THIRD_PARTY.md README.md BeatCut_05_Tutorial_RU.txt TEST_REPORT.md \
             build/sources/ffmpeg.tar.xz build/sources/x264.tar.gz
 
       - name: Upload application

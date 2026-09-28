@@ -3,9 +3,9 @@ from functools import lru_cache
 from bisect import bisect_right
 import random
 
-KINDS=('face','slow','zoom','shake','flash')
+KINDS=('face','slow','rewind','zoom','shake','flash')
 RANDOM_DEFAULTS=dict(random_mode=False,random_seed=1.,random_min=.4,random_max=1.5,
-                     rate_face=4.,rate_slow=4.,rate_zoom=10.,rate_shake=8.,rate_flash=0.)
+                     rate_face=4.,rate_slow=4.,rate_rewind=2.,rate_zoom=10.,rate_shake=8.,rate_flash=0.)
 
 
 @lru_cache(maxsize=256)

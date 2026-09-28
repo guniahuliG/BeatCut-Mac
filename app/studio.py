@@ -61,6 +61,25 @@ class App(tk.Tk):
         self.slider(edit,'min_shot','Минимальный кадр, сек.',.2,2,.35)
         self.slider(edit,'max_shot','Максимальный кадр, сек.',1,10,4)
         ttk.Label(edit,text='Разнообразие меняет разброс длительностей и вероятность коротких серий.').pack(anchor='w')
+        self.repeat_policy=tk.StringVar(value='Редкие повторы')
+        self.repeat_cooldown=tk.DoubleVar(value=8.)
+        repeat=ttk.LabelFrame(edit,text='Повтор исходных моментов',padding=8); repeat.pack(fill='x',pady=(8,0))
+        ttk.Combobox(repeat,textvariable=self.repeat_policy,values=['Свободно','Редкие повторы','Без повторов'],state='readonly').pack(fill='x')
+        row=ttk.Frame(repeat); row.pack(fill='x',pady=4)
+        ttk.Label(row,text='Пауза до повтора, сек. готового видео:').pack(side='left')
+        ttk.Spinbox(row,from_=0,to=600,increment=1,textvariable=self.repeat_cooldown,width=7).pack(side='right')
+        ttk.Label(repeat,text='«Без повторов» запрещает повторное использование исходного участка за весь монтаж и остановится до рендера, если материала не хватит.').pack(anchor='w')
+        color=ttk.LabelFrame(edit,text='Выравнивание цвета SDR по эталону',padding=8);color.pack(fill='x',pady=(8,0))
+        self.color_enabled=tk.BooleanVar(value=False);self.color_reference=tk.StringVar()
+        ttk.Checkbutton(color,text='Смягчённо подгонять цвет каждого фрагмента',variable=self.color_enabled).pack(anchor='w')
+        cr=ttk.Frame(color);cr.pack(fill='x',pady=3)
+        ttk.Entry(cr,textvariable=self.color_reference).pack(side='left',fill='x',expand=True)
+        ttk.Button(cr,text='Эталон…',command=self.pick_color_reference).pack(side='right')
+        ttk.Label(color,text='Коррекция по средним BGR-статистикам исходного фрагмента; только SDR, мягкая сила по умолчанию. Не профессиональный grade.').pack(anchor='w')
+        row=ttk.Frame(color);row.pack(fill='x')
+        ttk.Label(row,text='Сила match, 0–100%').pack(side='left')
+        self.color_strength=tk.DoubleVar(value=.55)
+        ttk.Scale(row,from_=0,to=1,variable=self.color_strength).pack(side='left',fill='x',expand=True)
         trans=ttk.LabelFrame(body,text='3. Переходы — вперемешку с обычными склейками',padding=10)
         trans.pack(fill='x',pady=6)
         self.slider(trans,'effect_rate','Частота переходов',0,1,.45,True)
@@ -123,6 +142,11 @@ class App(tk.Tk):
         p=filedialog.asksaveasfilename(title='Куда сохранить видео',defaultextension='.mp4',filetypes=[('MP4','*.mp4')],initialfile='montage.mp4')
         if p:self.output.set(p)
 
+    def pick_color_reference(self):
+        path=filedialog.askopenfilename(parent=self,title='Выберите SDR-видео как эталон цвета',
+            filetypes=[('Видео','*.mp4 *.mov *.mkv *.m4v'),('Все файлы','*')])
+        if path:self.color_reference.set(path)
+
     def settings(self):
         s={key:float(var.get()) for key,var in self.vars.items()}
         duration=float(self.duration.get().replace(',','.'))
@@ -130,10 +154,17 @@ class App(tk.Tk):
         seed=int(self.seed.get()) if self.seed.get().strip() else None
         if seed is not None and seed<0:raise ValueError('Seed должен быть целым неотрицательным числом.')
         if s['min_shot']>s['max_shot']:raise ValueError('Минимальный кадр больше максимального.')
+        if not math.isfinite(float(self.repeat_cooldown.get())) or self.repeat_cooldown.get()<0:
+            raise ValueError('Пауза до повтора должна быть неотрицательным числом.')
         crf,preset={'Быстрый черновик':(25,'ultrafast'),'Обычное':(20,'veryfast'),'Высокое':(18,'medium')}[self.quality.get()]
         s.update(duration=duration,seed=seed,size=SIZES[self.size.get()],fps=int(self.fps.get()),
                  fit='crop' if self.fit.get()=='Заполнить с обрезкой' else 'pad',crf=crf,preset=preset,
+                 repeat_policy=self.repeat_policy.get(),repeat_cooldown=float(self.repeat_cooldown.get()),
+                 color_match=bool(self.color_enabled.get()),color_strength=float(self.color_strength.get()),
+                 color_reference=self.color_reference.get().strip(),
                  effects=[EFFECTS[name] for name,var in self.effects.items() if var.get()])
+        if s['color_match'] and not Path(s['color_reference']).is_file():
+            raise ValueError('Для цветового match выберите эталонное SDR-видео.')
         return s
 
     def start(self):

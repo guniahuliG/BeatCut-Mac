@@ -16,8 +16,12 @@ def main(report,source):
     import io
     from test_fx import EffectsTests
     from test_random_fx import RandomEffectsTests
+    from test_release05 import ReleaseTests
+    from test_source_selection import SourceSelectionTests
     suite=unittest.defaultTestLoader.loadTestsFromTestCase(EffectsTests)
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(RandomEffectsTests))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ReleaseTests))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(SourceSelectionTests))
     # A windowed PyInstaller executable can have sys.stderr=None.
     test_log=io.StringIO()
     result=unittest.TextTestRunner(stream=test_log,verbosity=1).run(suite)

@@ -6,10 +6,10 @@ from scipy.ndimage import gaussian_filter1d
 
 DEFAULTS = dict(start=0., end=10., fade=.12, crop=1.12,
     face=False, face_strength=1., smooth=.08, face_roll=True, face_size=False,
-    target_size=.14, slow=False, speed=.5, zoom=False, zoom_amount=.20,
-    zoom_period=2., zoom_mode='Пульс', shake=False, shake_amount=.025,
-    shake_hz=8., shake_roll=2., flash=False, flash_hz=6., flash_alpha=.4,
-    flash_duty=.15)
+    target_size=.14, slow=False, speed=.5, rewind=False, rewind_amount=.75,
+    zoom=False, zoom_amount=.20, zoom_period=2., zoom_mode='Пульс', shake=False,
+    shake_amount=.025, shake_hz=8., shake_roll=2., flash=False, flash_hz=6.,
+    flash_alpha=.4, flash_duty=.15)
 from fx_random import RANDOM_DEFAULTS, active, local_params
 DEFAULTS.update(RANDOM_DEFAULTS)
 
@@ -23,20 +23,29 @@ def envelope(t, p):
     return x*x*(3-2*x)
 
 
-def source_time(t, p):
-    """Slow first half, catch up in the second. Endpoints and duration preserved.
-    C1-continuous integration: midpoint speed is 1, endpoint speed is 1.
-    Music is not time-stretched. Cuts inside the range may move off beats.
-    """
+def source_time(t,p):
+    """Rewind takes priority over slow motion; returns to timeline at event end."""
     if p.get('random_mode'):
+        interval=active(p,'rewind',t)
+        if interval is not None:return rewind_time(t,*interval,p.get('rewind_amount',.75))
         interval=active(p,'slow',t)
         if interval is None:return t
         p=local_params(p,'slow',interval)
     a,b=p['start'],p['end']
-    if not p['slow'] or b<=a or not a<t<b:return t
+    if p.get('rewind') and b>a and a<=t<b:
+        return rewind_time(t,a,b,p.get('rewind_amount',.75))
+    if not p.get('slow') or b<=a or not a<t<b:return t
     u=(t-a)/(b-a)
-    # derivative 1-(1-speed)*sin(2*pi*u), minimum speed at u=.25.
     return t-(1-p['speed'])*(b-a)*(1-math.cos(2*math.pi*u))/(2*math.pi)
+
+
+def rewind_time(t,a,b,amount):
+    if not a<=t<b or b<=a:return t
+    u=(t-a)/(b-a);depth=.42*float(np.clip(amount,.25,1.25))
+    if u<=.4:v=(u/.4)*depth
+    elif u<=.7:v=depth*(1-(u-.4)/.3)
+    else:v=(u-.7)/.3
+    return a+v*(b-a)
 
 
 def smooth_track(raw, seconds, fps):

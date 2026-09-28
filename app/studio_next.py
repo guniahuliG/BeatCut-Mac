@@ -4,17 +4,21 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from studio import App as MontageApp
 from fx_editor import Editor
+from batch_workspace import BatchManager
 
 
 class App(MontageApp):
     def __init__(self):
         super().__init__()
         self.editors=[]
+        self.batch_windows=[]
         self.setup_video_list()
-        self.title('BeatCut Studio 0.3 • монтаж + эффекты')
+        self.title('BeatCut Studio 0.5 • монтаж + эффекты')
         self.start_button.configure(text='1. Собрать черновик')
         self.open_button.configure(text='2. Предпросмотр / эффекты')
         ttk.Button(self.start_button.master,text='Открыть MP4…',command=self.open_existing).pack(side='left',padx=4)
+        self.queue_button=ttk.Button(self,text='Очередь 1–5 треков…',command=self.open_batch)
+        self.queue_button.pack(fill='x',padx=12,pady=4)
         self.status.set('Соберите черновик, затем откройте «Предпросмотр / эффекты». Можно открыть готовый MP4.')
 
     def setup_video_list(self):
@@ -83,6 +87,15 @@ class App(MontageApp):
                 'Убрать все исходники из списка? Файлы на диске останутся.',parent=self):
             self.videos.clear();self.refresh_video_list()
 
+    def open_batch(self):
+        self.batch_windows=[w for w in self.batch_windows if w.winfo_exists()]
+        if self.batch_windows:
+            self.batch_windows[0].lift();return
+        try:base=self.settings()
+        except (ValueError,tk.TclError) as e:
+            messagebox.showerror('Проверьте общие настройки',str(e),parent=self);return
+        self.batch_windows.append(BatchManager(self,base))
+
     def open_result(self):
         if self.last_output:self.editors.append(Editor(self,self.last_output))
 
@@ -93,11 +106,15 @@ class App(MontageApp):
         if path:self.editors.append(Editor(self,path))
 
     def close(self):
+        self.batch_windows=[w for w in self.batch_windows if w.winfo_exists()]
+        if any(w.busy for w in self.batch_windows):
+            messagebox.showinfo('Очередь работает','Остановите очередь и дождитесь остановки.',parent=self);return
         self.editors=[e for e in self.editors if e.winfo_exists()]
         if any(e.busy for e in self.editors):
             messagebox.showinfo('Идёт расчёт','Сначала остановите расчёт в окне эффектов и дождитесь остановки.');return
         if self.busy:
             super().close();return
+        for w in self.batch_windows:w.close()
         for e in self.editors:e.close()
         super().close()
 
